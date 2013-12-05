@@ -1,4 +1,4 @@
-rs-arm
+rs-cortex
 ======
 
-Rust package for interacting with microcontroller special registers
+Rust package for interacting with ARM Cortex-M microcontroller special registers
