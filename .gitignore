@@ -1,2 +1,2 @@
-.rust
-build
+*.rlib
+lib.d
