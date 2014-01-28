@@ -1,7 +1,7 @@
 
 extern mod cortex;
 
-use cortex::regs::{store, set, wait_for};
+use cortex::regs::{store, set, clear, wait_for};
 use sim::{enable_clock, USBOTG};
 use sim::{select_usb_source};
 
@@ -55,6 +55,23 @@ fn usb_reset_hard() {
     }
 }
 
+/// Read PID from BDT
+pub fn get_pid(ep: u8) {
+
+}
+
+/// Sets the STALL flag for IN and OUT BDTs
+pub fn stall_ep(ep: u8) {
+
+}
+
+/// Resume token processing
+pub fn resume() {
+    unsafe {
+        clear(USB_CTL as *mut u8, 0x20);
+    }
+}
+
 pub fn set_interrupt(val: Usb_Int) {
     unsafe {
         set(USB_INTEN as *mut u8, val as u8);
@@ -67,13 +84,13 @@ pub fn set_interrupts(val: u8) {
     }
 }
 
-pub fn usb_address(addr: u8) {
+pub fn set_address(addr: u8) {
     unsafe {
         store(USB_ADDR as *mut u8, addr);
     }
 }
 
-pub fn usb_reset(on_before_enable: ||) {
+pub fn reset(on_before_enable: ||) {
     unsafe {
         // Disable and suspend USB module
         set(USB_CTL as *mut u8, 0x22);
@@ -87,7 +104,7 @@ pub fn usb_reset(on_before_enable: ||) {
         zero_bdt();
         
         // Reset address
-        usb_address(0x00);
+        set_address(0x00);
 
         // Call supplied function (should initialise EP0)
         on_before_enable();
@@ -97,7 +114,7 @@ pub fn usb_reset(on_before_enable: ||) {
     }
 }
 
-pub fn usb_init(on_before_enable: ||) {
+pub fn init(on_before_enable: ||) {
     // Enable the SIM clock for USB
     enable_clock(USBOTG);
 
@@ -117,7 +134,7 @@ pub fn usb_init(on_before_enable: ||) {
     unsafe { store(USB_USBCTRL as *mut u8, 0x00); }
 
     // Run the software USB reset
-    usb_reset(on_before_enable);
+    reset(on_before_enable);
 
     // Enable interrupts for USBRST, TOKDNE and STALL
     set_interrupts(STALLEN as u8 |

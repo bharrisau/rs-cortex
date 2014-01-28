@@ -9,3 +9,4 @@ extern mod core;
 extern mod freescale;
 
 pub mod usb;
+pub mod control;
