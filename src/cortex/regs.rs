@@ -58,6 +58,11 @@ pub unsafe fn clear<T: BitAnd<T,T>+Not<T>>(dst: *mut T , mask: T) {
 }
 
 #[inline]
-pub unsafe fn wait_for<T: BitAnd<T,T>+BitOr<T,T>+Eq>(src: *T, mask: T, val: T) {
+pub unsafe fn wait_for<T: BitAnd<T,T>+Eq>(src: *T, mask: T, val: T) {
     while volatile_load(src) & mask != val {}
 }
+
+// #[inline]
+// pub unsafe fn wait_for_zero<T: BitAnd<T,T>+Eq>(src: *T, mask: T) {
+//     while volatile_load(src) & mask {}
+// }

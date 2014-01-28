@@ -15,6 +15,7 @@ RUSTFLAGS  := --target $(ARCH)-linux-eabi --target-cpu $(CPU) --cfg libc $(RUSTL
 LDFLAGS    := -mcpu=cortex-m0pllus -mthumb -O$(OPT) -nostartfiles \
               -ffreestanding -fno-builtin
 
+all: cortex freescale
 
 $(eval $(call RUST_CRATE, external/rust-core/core/))
 $(eval $(call RUST_CRATE, src/cortex/, $(LIB_core)))

@@ -1,7 +1,7 @@
 
 use cortex::regs::{set, clear};
 
-pub static BASE_SIM: u32 = 0x4004_7000;
+static BASE_SIM: u32 = 0x4004_7000;
 
 pub enum Clock {
     DAC0    = 0x102C_0C,
