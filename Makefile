@@ -9,17 +9,18 @@ ARCH       := thumbv6m
 CPU        := cortex-m0
 FLOAT      := soft
 
-RUSTLIBS   := -L external/rust-core/core -L src/cortex
-RUSTFLAGS  := --target $(ARCH)-linux-eabi --target-cpu $(CPU) --cfg libc $(RUSTLIBS) \
+RUSTLIBS   := 
+RUSTFLAGS  = --target $(ARCH)-linux-eabi --target-cpu $(CPU) --cfg libc $(RUSTLIBS) \
               --opt-level $(OPT) -Z $(FLOAT)-float -Z debug-info -Z no-landing-pads
 LDFLAGS    := -mcpu=cortex-m0pllus -mthumb -O$(OPT) -nostartfiles \
               -ffreestanding -fno-builtin
 
-all: cortex freescale
+all: cortex freescale usb
 
 $(eval $(call RUST_CRATE, external/rust-core/core/))
 $(eval $(call RUST_CRATE, src/cortex/, $(LIB_core)))
 $(eval $(call RUST_CRATE, src/freescale/, $(LIB_core) $(LIB_cortex)))
+$(eval $(call RUST_CRATE, src/usb/, $(LIB_core) $(LIB_freescale)))
 
 clean:
 	find . -name "lib.d" -delete
