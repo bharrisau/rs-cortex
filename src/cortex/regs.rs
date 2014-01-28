@@ -4,11 +4,7 @@ extern mod core;
 
 use core::ops::{BitOr, BitAnd, Not};
 use core::cmp::Eq;
-
-extern "rust-intrinsic" {
-    pub fn volatile_load<T>(src: *T) -> T;
-    pub fn volatile_store<T>(dst: *mut T, val: T);
-}
+use core::mem::{volatile_load, volatile_store};
 
 pub enum Sync_Method {
     Memory,
