@@ -13,6 +13,7 @@ static USB_USBCTRL: u32     = BASE_USB + 0x0100;
 static USB_CTL: u32         = BASE_USB + 0x0094;
 static USB_ADDR: u32        = BASE_USB + 0x0098;
 static USB_CONTROL: u32     = BASE_USB + 0x0108;
+static USB_INTEN: u32       = BASE_USB + 0x0084;
 
 static USB_ISTAT: u32       = BASE_USB + 0x0080;
 static USB_ERRSTAT: u32     = BASE_USB + 0x0088;
@@ -21,6 +22,17 @@ static USB_OTGISTAT: u32    = BASE_USB + 0x0010;
 static USB_BDTPAGE1: u32    = BASE_USB + 0x009C;
 static USB_BDTPAGE2: u32    = BASE_USB + 0x00B0;
 static USB_BDTPAGE3: u32    = BASE_USB + 0x00B4;
+
+pub enum Usb_Int {
+    USBRSTEN = 0x01,
+    ERROREN  = 0x02,
+    SOFTOKEN = 0x04,
+    TOKDNEEN = 0x08,
+    SLEEPEN  = 0x10,
+    RESUMEEN = 0x20,
+    ATTACHEN = 0x40,
+    STALLEN  = 0x80
+}
 
 fn zero_bdt() {
 }
@@ -43,6 +55,18 @@ fn usb_reset_hard() {
     }
 }
 
+pub fn set_interrupt(val: Usb_Int) {
+    unsafe {
+        set(USB_INTEN as *mut u8, val as u8);
+    }
+}
+
+pub fn set_interrupts(val: u8) {
+    unsafe {
+        store(USB_INTEN as *mut u8, val as u8);
+    }
+}
+
 pub fn usb_address(addr: u8) {
     unsafe {
         store(USB_ADDR as *mut u8, addr);
@@ -55,9 +79,9 @@ pub fn usb_reset(on_before_enable: ||) {
         set(USB_CTL as *mut u8, 0x22);
 
         // Clear any remaining status flags
-        store(USB_ISTAT as *mut u8, 0x00);
-        store(USB_ERRSTAT as *mut u8, 0x00);
-        store(USB_OTGISTAT as *mut u8, 0x00);
+        store(USB_ISTAT as *mut u8, 0xFF);
+        store(USB_ERRSTAT as *mut u8, 0xFF);
+        store(USB_OTGISTAT as *mut u8, 0xFF);
 
         // Zero out BDT
         zero_bdt();
@@ -96,5 +120,7 @@ pub fn usb_init(on_before_enable: ||) {
     usb_reset(on_before_enable);
 
     // Enable interrupts for USBRST, TOKDNE and STALL
-    set_interrupts(0x89);
+    set_interrupts(STALLEN as u8 |
+                  TOKDNEEN as u8 |
+                  USBRSTEN as u8);
 }
