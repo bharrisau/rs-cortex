@@ -6,7 +6,8 @@
 #[license = "MIT"];
 
 extern mod core;
-extern mod freescale;
 
 pub mod usb;
+pub mod stream;
 pub mod control;
+

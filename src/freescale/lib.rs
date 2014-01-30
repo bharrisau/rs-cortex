@@ -7,6 +7,7 @@
 
 extern mod core;
 extern mod cortex;
+extern mod rustusb = "usb";
 
 pub mod sim;
 pub mod usb;

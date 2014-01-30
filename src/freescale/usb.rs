@@ -1,9 +1,16 @@
 
+extern mod core;
 extern mod cortex;
+extern mod rustusb = "usb";
 
-use cortex::regs::{store, set, clear, wait_for};
+use core::fail::abort;
+use core::option::{Some, None};
+use cortex::regs::{store, load, set, clear, wait_for};
 use sim::{enable_clock, USBOTG};
 use sim::{select_usb_source};
+use rustusb::usb::{Usb_Peripheral, Usb_Data};
+use rustusb::usb::{Ep_State, Endpoint_Type};
+use rustusb::stream::Stream_Handler;
 
 mod sim;
 
@@ -22,6 +29,8 @@ static USB_OTGISTAT: u32    = BASE_USB + 0x0010;
 static USB_BDTPAGE1: u32    = BASE_USB + 0x009C;
 static USB_BDTPAGE2: u32    = BASE_USB + 0x00B0;
 static USB_BDTPAGE3: u32    = BASE_USB + 0x00B4;
+
+static USB_ENDPT0: u32      = BASE_USB + 0x00C0;
 
 pub enum Usb_Int {
     USBRSTEN = 0x01,
@@ -51,7 +60,7 @@ fn usb_reset_hard() {
     unsafe {
         let addr: *mut u8 = (BASE_USB + 0x010C) as *mut u8;
         store(addr, 0x80);
-        wait_for(addr as *u8, 0x808, 0x00);
+        wait_for(addr as *u8, 0x80, 0x00);
     }
 }
 
@@ -60,10 +69,40 @@ pub fn get_pid(ep: u8) {
 
 }
 
-/// Sets the STALL flag for IN and OUT BDTs
-pub fn stall_ep(ep: u8) {
-
+/// Sets the STALL flag for ENDPTx register
+pub fn stall_ep(ep: u32) {
+    if ep <= 15 {
+        let addr = USB_ENDPT0 + ep*4;
+        unsafe {
+            set(addr as *mut u8, 0x02);
+        }
+    }
 }
+
+/// Clears the STALL flag for ENDPTx register
+pub fn unstall_ep(ep: u32) {
+    if ep <= 15 {
+        let addr = USB_ENDPT0 + ep*4;
+        unsafe {
+            clear(addr as *mut u8, 0x02);
+        }
+    }
+}
+
+/// Enables the endpoint (also unstalls)
+pub fn enable_ep(ep: u32, control: bool, handshake: bool) {
+    if ep <= 15 {
+        let addr = USB_ENDPT0 + ep*4;
+        let val = 0x0c; // |
+        //    (if !control 0x10 else 0) |
+        //    (if handshake 0x01 else 0)
+        unsafe {
+            store(addr as *mut u8, val as u8);
+        }
+    }
+}
+
+// TODO: Need to handle BDT pingponging in here.
 
 /// Resume token processing
 pub fn resume() {
@@ -84,60 +123,230 @@ pub fn set_interrupts(val: u8) {
     }
 }
 
-pub fn set_address(addr: u8) {
-    unsafe {
-        store(USB_ADDR as *mut u8, addr);
-    }
+pub struct Freescale_Usb {
+    bdt: *mut u32,
+    max_ep: uint,
+    ping: [bool, ..32],
 }
 
-pub fn reset(on_before_enable: ||) {
-    unsafe {
-        // Disable and suspend USB module
-        set(USB_CTL as *mut u8, 0x22);
-
-        // Clear any remaining status flags
-        store(USB_ISTAT as *mut u8, 0xFF);
-        store(USB_ERRSTAT as *mut u8, 0xFF);
-        store(USB_OTGISTAT as *mut u8, 0xFF);
-
-        // Zero out BDT
-        zero_bdt();
+impl Freescale_Usb {
+    /// Create a new instance
+    /// Specify number of endpoints including EP0
+    pub fn new(max_endpoint: uint) -> Freescale_Usb {
+        let size = if max_endpoint > 15 {
+            512
+        } else {
+            max_endpoint * 32
+        };
         
-        // Reset address
-        set_address(0x00);
+        // Need 512byte aligned memory for BDT
+        let ptr = unsafe { core::heap::aligned_alloc_raw(512, size) };
+        Freescale_Usb {
+            bdt: ptr as *mut u32,
+            max_ep: max_endpoint,
+            ping: [false, ..32],
+        }
+    }
 
-        // Call supplied function (should initialise EP0)
-        on_before_enable();
+    fn get_bdt_offset(ep: uint, is_tx: bool, is_odd: bool) -> uint {
+        32*ep + (if is_tx { 16 } else { 0 } ) +
+            (if is_odd { 8 } else { 0 } )
+    }
+    
+    pub fn get_bdt_setting(&self, ep: uint, is_tx: bool, is_odd: bool) -> u32 {
+        let offset = Freescale_Usb::get_bdt_offset(ep, is_tx, is_odd);
+        let addr = ((self.bdt as u32) + offset as u32) as *u32;
+        unsafe {
+            load(addr)
+        }
+    }
+    
+    pub fn set_bdt_setting(&self, ep: uint, is_tx: bool, is_odd: bool, val: u32) {
+        let offset = Freescale_Usb::get_bdt_offset(ep, is_tx, is_odd);
+        let addr = ((self.bdt as u32) + offset as u32) as *mut u32;
+        unsafe {
+            store(addr, val);
+        }
+    }
 
-        // Enable USB module
-        store(USB_CTL as *mut u8, 0x01);
+    pub fn get_bdt_address(&self, ep: uint, is_tx: bool, is_odd: bool) -> u32 {
+        let offset = Freescale_Usb::get_bdt_offset(ep, is_tx, is_odd) + 4;
+        let addr = ((self.bdt as u32) + offset as u32) as *u32;
+        unsafe {
+            load(addr)
+        }
+    }
+    
+    pub fn set_bdt_address(&self, ep: uint, is_tx: bool, is_odd: bool, val: u32) {
+        let offset = Freescale_Usb::get_bdt_offset(ep, is_tx, is_odd) + 4;
+        let addr = ((self.bdt as u32) + offset as u32) as *mut u32;
+        unsafe {
+            store(addr, val);
+        }
     }
 }
 
-pub fn init(on_before_enable: ||) {
-    // Enable the SIM clock for USB
-    enable_clock(USBOTG);
+// TODO: Implement Drop trait to free the bdt
 
-    // Set the USB clock source to internal
-    select_usb_source(true);
+impl Usb_Peripheral for Freescale_Usb {
+    /// Enables the USB peripheral
+    /// Selects clock source, resets peripheral hardware,
+    /// allocates needed memory, runs software usb reset
+    fn init(&self) {
+        // Enable the SIM clock for USB
+        enable_clock(USBOTG);
 
-    // Cycle the USB module through a hard reset
-    usb_reset_hard();
+        // Set the USB clock source to internal
+        select_usb_source(true);
 
-    // Load the address of the BDT
-    set_bdt();
+        // Cycle the USB module through a hard reset
+        usb_reset_hard();
+
+        // Load the address of the BDT
+        unsafe {
+            let addr = self.bdt as u32;
+            store(USB_BDTPAGE1 as *mut u8, (addr << 8) as u8);
+            store(USB_BDTPAGE2 as *mut u8, (addr << 16) as u8);
+            store(USB_BDTPAGE3 as *mut u8, (addr << 24) as u8);
+        }
+        
+        // Enable the transceiver and disable pulldowns
+        unsafe { store(USB_USBCTRL as *mut u8, 0x00); }
+
+        // Run the software USB reset
+        self.reset();
+
+        // TODO: Move into usb crate
+        // Enable interrupts for USBRST, TOKDNE and STALL
+        set_interrupts(STALLEN as u8 |
+                      TOKDNEEN as u8 |
+                      USBRSTEN as u8);
+    }
+
+    /// Attaches the device to the bus
+    /// Enables relevant pullup
+    fn attach(&self) {
+        // Enable the DP pullup
+        unsafe { set(USB_CONTROL as *mut u8, 0x10); }
+    }
+
+    /// Moves peripheral to default state
+    /// Reset address, reset all endpoints,
+    /// clear any status flags
+    fn reset(&self) {
+        unsafe {
+            // Disable and suspend USB module
+            set(USB_CTL as *mut u8, 0x22);
+
+            // TODO: Reset pingpong register
+
+            // Clear any remaining status flags
+            store(USB_ISTAT as *mut u8, 0xFF);
+            store(USB_ERRSTAT as *mut u8, 0xFF);
+            store(USB_OTGISTAT as *mut u8, 0xFF);
+
+            // Zero out BDT
+            core::ptr::set_memory(self.bdt as *mut u8, 0, self.max_ep*32);
+            
+            // Reset address
+            self.set_address(0x00);
+
+            // Enable USB module
+            store(USB_CTL as *mut u8, 0x01);
+        }
+    }
+
+    fn poll(&self) {
+        USB0_Handler();
+    }
+
+    fn max_endpoints(&self) -> uint {
+        16
+    }
+
+    fn queue_rx(&mut self, ep: uint, stream: &Stream_Handler) {
+        // Get pingpong status
+        let odd = self.ping[ep*2];
+
+        // Check BDT is free
+        let stat = self.get_bdt_setting(ep, false, odd);
+        if stat & 0x80 > 0 {
+            abort();
+        }
+
+        // Transfer Stream_Handler into BDT
+        let addr = stream.address() as u32;
+        self.set_bdt_address(ep, false, odd, addr);
+        
+        let len = stream.len();
+        let data1 = if stream.data1() { 1 } else { 0 };
+
+        // Activate BDT
+        let val = ((len & 0x3FF) << 16) |
+            0x88 | (data1 << 6);
+        let stat = self.set_bdt_setting(ep, false, odd, val as u32);
+        
+        // Swap pingpong
+        self.ping[ep*2] = !odd;
+    }
+
+    fn set_address(&self, addr: u8) {
+        unsafe {
+            store(USB_ADDR as *mut u8, addr);
+        }
+    }
+
+    fn ep_enable(&self, ep: uint, typ: Endpoint_Type) {
+        // Make sure ep is in range
+        if ep > 15 {
+            abort();
+        }
+
+        // Work out flags required for type
+        let val = match typ {
+            rustusb::usb::Control         => 0x0D,
+            rustusb::usb::Tx_Only         => 0x15,
+            rustusb::usb::Rx_Only         => 0x19,
+            rustusb::usb::Tx_Rx           => 0x1D,
+            rustusb::usb::Isochronous_Tx  => 0x14,
+            rustusb::usb::Isochronous_Rx  => 0x18
+        };
+
+        // Set enpoint
+        let addr = USB_ENDPT0 + (ep as u32)*4;
+        unsafe {
+            store(addr as *mut u8, val as u8);
+        }
+    }
+
+    fn ep_stall(&self, ep: uint) {
+
+    }
+
+    fn ep_unstall(&self, ep: uint) {
+
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn USB0_Handler() {
+    // Check module has been initialised (needed?)
+    if !Usb_Data::is_ready() {
+        return;
+    }
     
-    // Enable the DP pullup
-    unsafe { set(USB_CONTROL as *mut u8, 0x10); }
+    // Get module
+    let module = Usb_Data::get();
     
-    // Enable the transceiver and disable pulldowns
-    unsafe { store(USB_USBCTRL as *mut u8, 0x00); }
-
-    // Run the software USB reset
-    reset(on_before_enable);
-
-    // Enable interrupts for USBRST, TOKDNE and STALL
-    set_interrupts(STALLEN as u8 |
-                  TOKDNEEN as u8 |
-                  USBRSTEN as u8);
+    // Check interrupt source
+    // On usbrst call reset
+    module.on_reset();
+    // On stall of EP0 need to call setup_control
+    module.on_stall();
+    //   TODO: Emit info on stall of other EP
+    // On tokdne call out to handle_transaction
+    module.on_token(0, false, 0, 0);
+    // TODO: Update CTL after processing a SETUP token (will have been paused)
+            //store(USB_CTL as *mut u8, 0x01);
+    // Clear flags
 }
