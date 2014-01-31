@@ -37,8 +37,8 @@ pub unsafe fn store_sync<T>(dst: *mut T, val: T, sync_method: Sync_Method) {
 }
 
 #[inline]
-pub unsafe fn load<T>(src: *T) -> T {
-    volatile_load(src)
+pub unsafe fn load<T>(src: *mut T) -> T {
+    volatile_load(src as *T)
 }
 
 #[inline]
