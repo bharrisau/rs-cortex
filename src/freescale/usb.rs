@@ -4,15 +4,17 @@ extern mod cortex;
 extern mod rustusb = "usb";
 
 use core::fail::abort;
-use core::option::{Some, None};
+use core::option::{Option, Some, None};
 use cortex::regs::{store, load, set, clear, wait_for};
 use sim::{enable_clock, USBOTG};
 use sim::{select_usb_source};
 use rustusb::usb::{Usb_Peripheral, Usb_Data};
-use rustusb::usb::{Ep_State, Endpoint_Type};
+use rustusb::usb::{Endpoint_Type};
 use rustusb::stream::Stream_Handler;
 
 mod sim;
+
+static mut USB_PERIPHERAL: Option<Freescale_Usb> = None;
 
 static BASE_USB: u32        = 0x4007_2000;
 static USB_USBTRC0: u32     = BASE_USB + 0x010C;
@@ -22,7 +24,8 @@ static USB_ADDR: u32        = BASE_USB + 0x0098;
 static USB_CONTROL: u32     = BASE_USB + 0x0108;
 static USB_INTEN: u32       = BASE_USB + 0x0084;
 
-static USB_ISTAT: u32       = BASE_USB + 0x0080;
+static USB_STAT: u32        = BASE_USB + 0x0090;
+static USB_ISTAT: *mut u8   = (BASE_USB + 0x0080) as *mut u8;
 static USB_ERRSTAT: u32     = BASE_USB + 0x0088;
 static USB_OTGISTAT: u32    = BASE_USB + 0x0010;
 
@@ -132,7 +135,7 @@ pub struct Freescale_Usb {
 impl Freescale_Usb {
     /// Create a new instance
     /// Specify number of endpoints including EP0
-    pub fn new(max_endpoint: uint) -> Freescale_Usb {
+    pub fn new(max_endpoint: uint) -> &'static mut Freescale_Usb {
         let size = if max_endpoint > 15 {
             512
         } else {
@@ -141,10 +144,21 @@ impl Freescale_Usb {
         
         // Need 512byte aligned memory for BDT
         let ptr = unsafe { core::heap::aligned_alloc_raw(512, size) };
-        Freescale_Usb {
+        let this =Freescale_Usb {
             bdt: ptr as *mut u32,
             max_ep: max_endpoint,
             ping: [false, ..32],
+        };
+        unsafe { USB_PERIPHERAL = Some(this); }
+        Freescale_Usb::get()
+    }
+
+    pub fn get() -> &'static mut Freescale_Usb {
+        unsafe {
+            match USB_PERIPHERAL {
+                Some(ref mut module) => module,
+                None => abort()
+            }
         }
     }
 
@@ -155,7 +169,7 @@ impl Freescale_Usb {
     
     pub fn get_bdt_setting(&self, ep: uint, is_tx: bool, is_odd: bool) -> u32 {
         let offset = Freescale_Usb::get_bdt_offset(ep, is_tx, is_odd);
-        let addr = ((self.bdt as u32) + offset as u32) as *u32;
+        let addr = ((self.bdt as u32) + offset as u32) as *mut u32;
         unsafe {
             load(addr)
         }
@@ -171,7 +185,7 @@ impl Freescale_Usb {
 
     pub fn get_bdt_address(&self, ep: uint, is_tx: bool, is_odd: bool) -> u32 {
         let offset = Freescale_Usb::get_bdt_offset(ep, is_tx, is_odd) + 4;
-        let addr = ((self.bdt as u32) + offset as u32) as *u32;
+        let addr = ((self.bdt as u32) + offset as u32) as *mut u32;
         unsafe {
             load(addr)
         }
@@ -334,19 +348,46 @@ pub extern "C" fn USB0_Handler() {
     if !Usb_Data::is_ready() {
         return;
     }
+
+    // Get interrupt status
+    let istat = unsafe { load(USB_ISTAT) };
     
     // Get module
     let module = Usb_Data::get();
     
-    // Check interrupt source
-    // On usbrst call reset
-    module.on_reset();
-    // On stall of EP0 need to call setup_control
-    module.on_stall();
-    //   TODO: Emit info on stall of other EP
+    // On usbrst call reset and return
+    if istat & 1 > 0 {
+        module.on_reset();
+        return;
+    }
+
+    // On stall call stall
+    if istat & 0x80 > 0 {
+        module.on_stall();
+    }
+
     // On tokdne call out to handle_transaction
-    module.on_token(0, false, 0, 0);
-    // TODO: Update CTL after processing a SETUP token (will have been paused)
-            //store(USB_CTL as *mut u8, 0x01);
+    if istat & 0x08 > 0 {
+        // Get token info
+        let stat = unsafe { load(USB_STAT as *mut u8) as uint };
+        let ep = stat >> 4;
+        let tx = (stat & 0x08) > 0;
+        let odd = (stat & 0x04) > 0;
+
+        let this = Freescale_Usb::get();
+        let bdt_info = this.get_bdt_setting(ep, tx, odd);
+        let pid = (bdt_info >> 2) & 0x0F;
+        let len = (bdt_info >> 16) & 0x3FF;
+
+        module.on_token(ep, tx, pid as uint, len as uint);
+
+        // Update CTL after processing a SETUP token (will have been paused)
+        if pid == 0x0D {
+            unsafe { store(USB_CTL as *mut u8, 0x01); }
+        }
+    }
+
     // Clear flags
+    // TODO: Does this need to be more complicated?
+    unsafe { store(USB_ISTAT, istat); }
 }

@@ -49,7 +49,7 @@ impl Endpoint_Handler for Ep0_Handler {
     
     /// Activate endpoint 0 and prepare to receive setup transaction
     fn on_reset(&mut self, module: &'static mut Usb_Data) {
-        // Enable EP0 for setup, rx, tx, and handshake
+        // Enable EP0 for control transfers
         module.enable_ep(0, Control);
 
         // Ready stream handler for setup transaction
@@ -62,7 +62,10 @@ impl Endpoint_Handler for Ep0_Handler {
 
     /// Handle token addressed to endpoint
     fn on_token(&mut self, module: &'static mut Usb_Data, ep: uint, is_tx: bool, pid: Token_Pid, len: uint) {
-
+        // Check PID matches expected state
+        // Feed token into stream handler
+        // If finished, process as control transfer
+        // If not, queue next transaction
     }
 }
 
