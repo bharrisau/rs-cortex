@@ -28,7 +28,7 @@ pub trait Usb_Peripheral {
 
     fn max_endpoints(&self) -> uint;
 
-    fn queue_rx(&mut self, uint, &Stream_Handler);
+    fn queue_next(&mut self, uint, bool, &Stream_Handler);
     fn set_address(&self, u8);
     fn ep_enable(&self, uint, Endpoint_Type);
     fn ep_stall(&self, uint);
@@ -165,7 +165,7 @@ impl Usb_Data {
     /// Takes endpoint number and stream handler
     pub fn queue_rx(&mut self, endpoint: uint, stream: &Stream_Handler) {
         // Pass to peripheral
-        self.peripheral.queue_rx(endpoint, stream);
+        self.peripheral.queue_next(endpoint, false, stream);
     }
     
     /// Prepare to transmit transaction on endpoint

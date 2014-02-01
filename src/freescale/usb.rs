@@ -230,7 +230,6 @@ impl Usb_Peripheral for Freescale_Usb {
         // Run the software USB reset
         self.reset();
 
-        // TODO: Move into usb crate
         // Enable interrupts for USBRST, TOKDNE and STALL
         self.set_interrupts(STALLEN as u8 |
                       TOKDNEEN as u8 |
@@ -278,19 +277,20 @@ impl Usb_Peripheral for Freescale_Usb {
         16
     }
 
-    fn queue_rx(&mut self, ep: uint, stream: &Stream_Handler) {
+    fn queue_next(&mut self, ep: uint, is_tx: bool, stream: &Stream_Handler) {
         // Get pingpong status
+        // TODO: Need to offset address for when is_tx=true
         let odd = self.ping[ep*2];
 
         // Check BDT is free
-        let stat = self.get_bdt_setting(ep, false, odd);
+        let stat = self.get_bdt_setting(ep, is_tx, odd);
         if stat & 0x80 > 0 {
             abort();
         }
 
         // Transfer Stream_Handler into BDT
         let addr = stream.address() as u32;
-        self.set_bdt_address(ep, false, odd, addr);
+        self.set_bdt_address(ep, is_tx, odd, addr);
         
         let len = stream.len();
         let data1 = if stream.data1() { 1 } else { 0 };
@@ -298,7 +298,7 @@ impl Usb_Peripheral for Freescale_Usb {
         // Activate BDT
         let val = ((len & 0x3FF) << 16) |
             0x88 | (data1 << 6);
-        let stat = self.set_bdt_setting(ep, false, odd, val as u32);
+        let stat = self.set_bdt_setting(ep, is_tx, odd, val as u32);
         
         // Swap pingpong
         self.ping[ep*2] = !odd;
