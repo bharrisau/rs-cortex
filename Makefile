@@ -18,11 +18,14 @@ LDFLAGS    := -mcpu=cortex-m0pllus -mthumb -O$(OPT) -nostartfiles \
 
 all: cortex freescale usb
 
+dist: all
+	mkdir -p build
+	cp -f $(RUST_LIBS) build/
+
 $(eval $(call RUST_CRATE, external/rust-core/core/))
 $(eval $(call RUST_CRATE, src/cortex/, $(LIB_core)))
 $(eval $(call RUST_CRATE, src/usb/, $(LIB_core)))
 $(eval $(call RUST_CRATE, src/freescale/, $(LIB_core) $(LIB_cortex) $(LIB_usb)))
 
 clean:
-	find . -name "lib.d" -delete
-	find . -name "*.rlib" -delete
+	rm -f $(RUST_LIBS) $(RUST_DEPS) build/*

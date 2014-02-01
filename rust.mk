@@ -6,6 +6,9 @@ RUST_CRATE_NAME = $(shell printf $(1) | sed -ne 's/^\([^\#]*\/\)\{0,1\}\([^\#]*\
 RUST_CRATE_VERSION = $(shell printf $(1) | sed -ne 's/^[^\#]*\#\(.*\)$$/\1/p')
 RUST_CRATE_HASH = $(shell printf $(strip $(1)) | shasum -a 256 | sed -ne 's/^\(.\{8\}\).*$$/\1/p')
 
+RUST_LIBS :=
+RUST_DEPS :=
+
 define RUST_CRATE
 _rust_crate_dir     := $(dir $(1))
 _rust_crate_lib     := $$(_rust_crate_dir)lib.rs
@@ -23,6 +26,8 @@ endif
 _rust_crate_hash    := $$(call RUST_CRATE_HASH, $$(_rust_crate_name)\#$$(_rust_crate_version))
 _rust_crate_rlib    := $$(_rust_crate_dir)lib$$(_rust_crate_name)-$$(_rust_crate_hash)-$$(_rust_crate_version).rlib
 LIB_$$(_rust_crate_name) := $$(_rust_crate_rlib)
+RUST_LIBS += $$(_rust_crate_rlib)
+RUST_DEPS += $$(patsubst %.rs,%.d,$$(_rust_crate_lib))
 
 .PHONY : $$(_rust_crate_name)
 $$(_rust_crate_name) : $$(_rust_crate_rlib)
