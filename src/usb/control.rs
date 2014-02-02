@@ -3,7 +3,7 @@
 extern mod core;
 
 use core::vec::Vec;
-use usb::{Endpoint_Handler, Usb_Data, Control, Token_Pid};
+use usb::{Endpoint_Handler, Usb_Module, Control, Token_Pid};
 use stream::Stream_Handler;
 
 static REQ_GET_STATUS     : u8 = 0x00;
@@ -35,20 +35,20 @@ impl Ep0_Handler {
 }
 
 impl Endpoint_Handler for Ep0_Handler {
-//    fn handle_setup(&self, module: &Usb_Data, endpoint: uint, length: uint) -> bool {
+//    fn handle_setup(&self, module: &Usb_Module, endpoint: uint, length: uint) -> bool {
 //        true
 //    }
 //
-//    fn handle_out(&self, module: &Usb_Data, endpoint: uint, length: uint) -> bool {
+//    fn handle_out(&self, module: &Usb_Module, endpoint: uint, length: uint) -> bool {
 //        true
 //    }
 //
-//    fn handle_in(&self, module: &Usb_Data, endpoint: uint, length: uint) -> bool {
+//    fn handle_in(&self, module: &Usb_Module, endpoint: uint, length: uint) -> bool {
 //        true
 //    }
     
     /// Activate endpoint 0 and prepare to receive setup transaction
-    fn on_reset(&mut self, module: &'static mut Usb_Data) {
+    fn on_reset(&mut self, module: &'static mut Usb_Module) {
         // Enable EP0 for control transfers
         module.enable_ep(0, Control);
 
@@ -61,7 +61,7 @@ impl Endpoint_Handler for Ep0_Handler {
     }
 
     /// Handle token addressed to endpoint
-    fn on_token(&mut self, module: &'static mut Usb_Data, ep: uint, is_tx: bool, pid: Token_Pid, len: uint) {
+    fn on_token(&mut self, module: &'static mut Usb_Module, ep: uint, is_tx: bool, pid: Token_Pid, len: uint) {
         // Check PID matches expected state
         // Feed token into stream handler
         // If finished, process as control transfer

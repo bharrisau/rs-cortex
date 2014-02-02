@@ -7,7 +7,7 @@ use core::fail::abort;
 use control::Ep0_Handler;
 use stream::Stream_Handler;
 
-static mut USB_MODULE: Option<Usb_Data> = None; 
+static mut USB_MODULE: Option<Usb_Module> = None; 
 
 pub enum Endpoint_Type {
     Control,
@@ -37,13 +37,13 @@ pub trait Usb_Peripheral {
 
 /// The trait for the endpoint handlers
 pub trait Endpoint_Handler {
-//    fn handle_setup(&self, &Usb_Data, uint, uint) -> bool;
-//    fn handle_out(&self, &Usb_Data, uint, uint) -> bool;
-//    fn handle_in(&self, &Usb_Data, uint, uint) -> bool;
+//    fn handle_setup(&self, &Usb_Module, uint, uint) -> bool;
+//    fn handle_out(&self, &Usb_Module, uint, uint) -> bool;
+//    fn handle_in(&self, &Usb_Module, uint, uint) -> bool;
 
-    fn on_reset(&mut self, &'static mut Usb_Data);
+    fn on_reset(&mut self, &'static mut Usb_Module);
 
-    fn on_token(&mut self, &'static mut Usb_Data, uint, bool, Token_Pid, uint);
+    fn on_token(&mut self, &'static mut Usb_Module, uint, bool, Token_Pid, uint);
 }
 
 
@@ -58,21 +58,21 @@ enum Usb_State {
     Suspended
 }
 
-pub struct Usb_Data {
+pub struct Usb_Module {
     peripheral: ~Usb_Peripheral,
     state: Usb_State,
     handler: Ep0_Handler,
 }
 
-impl Usb_Data {
-    pub fn new(peripheral: ~Usb_Peripheral) -> &'static mut Usb_Data {
+impl Usb_Module {
+    pub fn new(peripheral: ~Usb_Peripheral) -> &'static mut Usb_Module {
         // Abort if already initialised
-        if Usb_Data::is_ready() {
+        if Usb_Module::is_ready() {
             abort();
         }
 
         // Create struct and store as singleton
-        let module = Usb_Data {
+        let module = Usb_Module {
             peripheral: peripheral,
             state: Unattached,
             handler: Ep0_Handler::new(64)
@@ -81,7 +81,7 @@ impl Usb_Data {
             USB_MODULE = Some(module);
         }
 
-        Usb_Data::get()
+        Usb_Module::get()
     }
 
     /// Return true if the singleton is ready
@@ -95,7 +95,7 @@ impl Usb_Data {
     }
 
     /// Get the singleton object
-    pub fn get() -> &'static mut Usb_Data {
+    pub fn get() -> &'static mut Usb_Module {
         unsafe {
             match USB_MODULE {
                 Some(ref mut module) => module,

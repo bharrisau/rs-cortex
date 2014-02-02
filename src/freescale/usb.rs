@@ -8,7 +8,7 @@ use core::option::{Option, Some, None};
 use cortex::regs::{store, load, set, wait_for};
 use sim::{enable_clock, USBOTG};
 use sim::{select_usb_source};
-use rustusb::usb::{Usb_Peripheral, Usb_Data};
+use rustusb::usb::{Usb_Peripheral, Usb_Module};
 use rustusb::usb::{Endpoint_Type};
 use rustusb::stream::Stream_Handler;
 
@@ -350,7 +350,7 @@ impl Usb_Peripheral for Freescale_Usb {
 #[no_mangle]
 pub extern "C" fn USB0_Handler() {
     // Check module has been initialised (needed?)
-    if !Usb_Data::is_ready() {
+    if !Usb_Module::is_ready() {
         return;
     }
 
@@ -358,7 +358,7 @@ pub extern "C" fn USB0_Handler() {
     let istat = unsafe { load(USB_ISTAT) };
     
     // Get module
-    let module = Usb_Data::get();
+    let module = Usb_Module::get();
     
     // On usbrst call reset and return
     if istat & 1 > 0 {
