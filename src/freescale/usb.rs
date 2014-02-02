@@ -279,8 +279,8 @@ impl Usb_Peripheral for Freescale_Usb {
 
     fn queue_next(&mut self, ep: uint, is_tx: bool, stream: &Stream_Handler) {
         // Get pingpong status
-        // TODO: Need to offset address for when is_tx=true
-        let odd = self.ping[ep*2];
+        let ping_index = ep*2 + if is_tx { 1 } else { 0 };
+        let odd = self.ping[ping_index];
 
         // Check BDT is free
         let stat = self.get_bdt_setting(ep, is_tx, odd);
@@ -301,7 +301,7 @@ impl Usb_Peripheral for Freescale_Usb {
         let stat = self.set_bdt_setting(ep, is_tx, odd, val as u32);
         
         // Swap pingpong
-        self.ping[ep*2] = !odd;
+        self.ping[ping_index] = !odd;
     }
 
     fn set_address(&self, addr: u8) {
