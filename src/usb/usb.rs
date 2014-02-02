@@ -59,13 +59,13 @@ enum Usb_State {
 }
 
 pub struct Usb_Module {
-    peripheral: ~Usb_Peripheral,
+    peripheral: &'static mut Usb_Peripheral,
     state: Usb_State,
     handler: Ep0_Handler,
 }
 
 impl Usb_Module {
-    pub fn new(peripheral: ~Usb_Peripheral) -> &'static mut Usb_Module {
+    pub fn new(peripheral: &'static mut Usb_Peripheral) -> &'static mut Usb_Module {
         // Abort if already initialised
         if Usb_Module::is_ready() {
             abort();
