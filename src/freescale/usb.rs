@@ -1,10 +1,10 @@
 
-extern mod core;
-extern mod cortex;
-extern mod rustusb = "usb";
+extern crate cortex;
+extern crate rustusb = "usb";
 
-use core::fail::abort;
-use core::option::{Option, Some, None};
+use std::intrinsics::abort;
+use std::ptr::set_memory;
+use std::rt::global_heap::malloc_raw;
 use cortex::regs::{store, load, set, wait_for};
 use sim::{enable_clock, USBOTG};
 use sim::{select_usb_source};
@@ -129,7 +129,8 @@ impl Freescale_Usb {
         };
         
         // Need 512byte aligned memory for BDT
-        let ptr = unsafe { core::heap::aligned_alloc_raw(512, size) };
+        // TODO: Need to fix up alignment. Maybe just static assignment?
+        let ptr = unsafe { malloc_raw(512) };
         let this =Freescale_Usb {
             bdt: ptr as *mut u32,
             max_ep: max_endpoint,
@@ -259,7 +260,7 @@ impl Usb_Peripheral for Freescale_Usb {
             store(USB_OTGISTAT as *mut u8, 0xFF);
 
             // Zero out BDT
-            core::ptr::set_memory(self.bdt as *mut u8, 0, self.max_ep*32);
+            set_memory(self.bdt as *mut u8, 0, self.max_ep*32);
             
             // Reset address
             self.set_address(0x00);
@@ -285,7 +286,7 @@ impl Usb_Peripheral for Freescale_Usb {
         // Check BDT is free
         let stat = self.get_bdt_setting(ep, is_tx, odd);
         if stat & 0x80 > 0 {
-            abort();
+            unsafe { abort(); }
         }
 
         // Transfer Stream_Handler into BDT
@@ -313,7 +314,7 @@ impl Usb_Peripheral for Freescale_Usb {
     fn ep_enable(&self, ep: uint, typ: Endpoint_Type) {
         // Make sure ep is in range
         if ep > 15 {
-            abort();
+            unsafe { abort(); }
         }
 
         // Work out flags required for type

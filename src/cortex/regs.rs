@@ -1,26 +1,28 @@
 // load, store, set, clear, wait_for
 
-extern mod core;
+//extern mod core;
 
-use core::ops::{BitOr, BitAnd, Not};
-use core::cmp::Eq;
-use core::mem::{volatile_load, volatile_store};
+//use core::ops::{BitOr, BitAnd, Not};
+//use core::cmp::Eq;
+//use core::mem::{volatile_load, volatile_store};
 
-pub enum Sync_Method {
+use std::intrinsics::{volatile_load, volatile_store};
+
+pub enum SyncMethod {
     Memory,
-    Memory_Flush,
-    Instruction_Flush
+    MemoryFlush,
+    InstructionFlush
 }
 
 // Note: Probably going to have to inline this stuff properly.
 // Not really synchronising if there is another function call involved.
 #[inline]
-pub fn sync(sync_method: Sync_Method) {
+pub fn sync(sync_method: SyncMethod) {
     unsafe {
         match sync_method {
             Memory            => asm!("dmb"),
-            Memory_Flush      => asm!("dsb"),
-            Instruction_Flush => asm!("isb")
+            MemoryFlush      => asm!("dsb"),
+            InstructionFlush => asm!("isb")
         }
     }
 }
@@ -31,7 +33,7 @@ pub unsafe fn store<T>(dst: *mut T, val: T) {
 }
 
 #[inline]
-pub unsafe fn store_sync<T>(dst: *mut T, val: T, sync_method: Sync_Method) {
+pub unsafe fn store_sync<T>(dst: *mut T, val: T, sync_method: SyncMethod) {
     volatile_store(dst, val);
     sync(sync_method);
 }

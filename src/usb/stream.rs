@@ -1,8 +1,11 @@
-use core::option::{Option, None, Some};
-use core::fail::abort;
-use core::container::Container;
-use core::slice::to_mut_ptr;
-use core::cmp::min;
+//use core::option::{Option, None, Some};
+//use core::fail::abort;
+//use core::container::Container;
+//use core::slice::to_mut_ptr;
+//use core::cmp::min;
+
+use std::intrinsics::abort;
+use std::cmp::min;
 
 pub struct Stream_Handler {
     max_packet: uint,
@@ -28,13 +31,13 @@ impl Stream_Handler {
     pub fn setup(&mut self, buf: &mut [u8], data1: bool) {
         // Ensure there is no pending transaction
         if self.transfer_size != 0 {
-            abort();
+            unsafe { abort(); }
         }
 
         // Save dst buffer
         self.position = 0;
         self.transfer_size = buf.len();
-        self.buf = Some(to_mut_ptr(buf));
+        self.buf = Some(buf.as_mut_ptr());
 
         // Set data toggle
         self.data1 = data1;
@@ -60,7 +63,7 @@ impl Stream_Handler {
     }
 
     pub fn address(&self) -> *mut u8 {
-        self.buf.get()
+        self.buf.unwrap()
     }
 
     pub fn len(&self) -> uint {

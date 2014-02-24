@@ -1,8 +1,6 @@
 /// Logic for the control endpoint
 
-extern mod core;
-
-use core::vec::Vec;
+use std::vec_ng::Vec;
 use usb::{Endpoint_Handler, Usb_Module, Control, Token_Pid};
 use stream::Stream_Handler;
 

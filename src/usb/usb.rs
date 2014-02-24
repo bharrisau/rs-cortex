@@ -1,11 +1,11 @@
 
-extern mod core;
-
-use core::vec::Vec;
-use core::option::{Option, Some, None};
-use core::fail::abort;
+//use core::vec::Vec;
+//use core::option::{Option, Some, None};
+//use core::fail::abort;
 use control::Ep0_Handler;
 use stream::Stream_Handler;
+use std::vec_ng::Vec;
+use std::intrinsics::abort;
 
 static mut USB_MODULE: Option<Usb_Module> = None; 
 
@@ -68,7 +68,7 @@ impl Usb_Module {
     pub fn new(peripheral: &'static mut Usb_Peripheral) -> &'static mut Usb_Module {
         // Abort if already initialised
         if Usb_Module::is_ready() {
-            abort();
+            unsafe { abort(); }
         }
 
         // Create struct and store as singleton
@@ -144,10 +144,10 @@ impl Usb_Module {
         let handler = &mut self.handler;
 
         // Convert pid into enum
-        let pid = Token_Pid::from_u8(pid as u8);
-
-        // Pass info to handler
-        handler.on_token(self, endpoint, is_tx, pid, length);
+        match FromPrimitive::from_uint(pid) {
+            Some(pid) => handler.on_token(self, endpoint, is_tx, pid, length),
+            None => {}
+        }
     }
 
     /// Enable the endpoint for given transactions
@@ -190,6 +190,7 @@ pub struct Ep_State {
 }
 
 /// PIDs for tokens
+#[deriving(Eq, FromPrimitive)]
 pub enum Token_Pid {
     Out         = 0b0001,
     In          = 0b1001,
@@ -212,20 +213,20 @@ pub enum Token_Pid {
     Reserved    = 0b0000,
 }
 
-impl Token_Pid {
-    pub fn from_u8(num: u8) -> Token_Pid {
-        unsafe {
-            core::mem::transmute(num & 0xF)
-        }
-    }
-}
+//impl Token_Pid {
+//    pub fn from_u8(num: u8) -> Token_Pid {
+//        unsafe {
+//            core::mem::transmute(num & 0xF)
+//        }
+//    }
+//}
 
 /// Handle a transaction (called after TOKDNE set)
 pub fn handle_transaction(ep: u8, tx: bool, odd: bool, pid: u8, len: u16) {
     // Retrieve endpoint info struct
     let ep_state = match get_ep_state(ep, tx, odd) {
         Some(state) => state,
-        None        => core::fail::abort()
+        None        => unsafe { abort() }
     };
 
 }
