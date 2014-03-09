@@ -2,24 +2,24 @@
 //use core::vec::Vec;
 //use core::option::{Option, Some, None};
 //use core::fail::abort;
-use control::Ep0_Handler;
-use stream::Stream_Handler;
+use control::Ep0Handler;
+use stream::StreamHandler;
 use std::vec_ng::Vec;
 use std::intrinsics::abort;
 
-static mut USB_MODULE: Option<Usb_Module> = None; 
+static mut USB_MODULE: Option<UsbModule> = None; 
 
-pub enum Endpoint_Type {
+pub enum EndpointType {
     Control,
-    Tx_Only,
-    Rx_Only,
-    Tx_Rx,
-    Isochronous_Tx,
-    Isochronous_Rx
+    TxOnly,
+    RxOnly,
+    TxRx,
+    IsochronousTx,
+    IsochronousRx
 }
 
 /// The trait for the low level USB peripheral
-pub trait Usb_Peripheral {
+pub trait UsbPeripheral {
     fn init(&self);
     fn attach(&self);
     fn reset(&self);
@@ -28,60 +28,60 @@ pub trait Usb_Peripheral {
 
     fn max_endpoints(&self) -> uint;
 
-    fn queue_next(&mut self, uint, bool, &Stream_Handler);
+    fn queue_next(&mut self, uint, bool, &StreamHandler);
     fn set_address(&self, u8);
-    fn ep_enable(&self, uint, Endpoint_Type);
+    fn ep_enable(&self, uint, EndpointType);
     fn ep_stall(&self, uint);
     fn ep_unstall(&self, uint);
 }
 
 /// The trait for the endpoint handlers
-pub trait Endpoint_Handler {
-//    fn handle_setup(&self, &Usb_Module, uint, uint) -> bool;
-//    fn handle_out(&self, &Usb_Module, uint, uint) -> bool;
-//    fn handle_in(&self, &Usb_Module, uint, uint) -> bool;
+pub trait EndpointHandler {
+//    fn handle_setup(&self, &UsbModule, uint, uint) -> bool;
+//    fn handle_out(&self, &UsbModule, uint, uint) -> bool;
+//    fn handle_in(&self, &UsbModule, uint, uint) -> bool;
 
-    fn on_reset(&mut self, &'static mut Usb_Module);
+    fn on_reset(&mut self, &'static mut UsbModule);
 
-    fn on_token(&mut self, &'static mut Usb_Module, uint, bool, Token_Pid, uint);
+    fn on_token(&mut self, &'static mut UsbModule, uint, bool, TokenPid, uint);
 }
 
 
 /// Enum for USB state machine
-enum Usb_State {
+pub enum UsbState {
     Unattached,
     Attached,
     Default,
-    Set_Address,
+    SetAddress,
     Address,
     Configured,
     Suspended
 }
 
-pub struct Usb_Module {
-    peripheral: &'static mut Usb_Peripheral,
-    state: Usb_State,
-    handler: Ep0_Handler,
+pub struct UsbModule {
+    peripheral: &'static mut UsbPeripheral,
+    state: UsbState,
+    handler: Ep0Handler,
 }
 
-impl Usb_Module {
-    pub fn new(peripheral: &'static mut Usb_Peripheral) -> &'static mut Usb_Module {
+impl UsbModule {
+    pub fn new(peripheral: &'static mut UsbPeripheral) -> &'static mut UsbModule {
         // Abort if already initialised
-        if Usb_Module::is_ready() {
+        if UsbModule::is_ready() {
             unsafe { abort(); }
         }
 
         // Create struct and store as singleton
-        let module = Usb_Module {
+        let module = UsbModule {
             peripheral: peripheral,
             state: Unattached,
-            handler: Ep0_Handler::new(64)
+            handler: Ep0Handler::new(64)
         };
         unsafe {
             USB_MODULE = Some(module);
         }
 
-        Usb_Module::get()
+        UsbModule::get()
     }
 
     /// Return true if the singleton is ready
@@ -95,7 +95,7 @@ impl Usb_Module {
     }
 
     /// Get the singleton object
-    pub fn get() -> &'static mut Usb_Module {
+    pub fn get() -> &'static mut UsbModule {
         unsafe {
             match USB_MODULE {
                 Some(ref mut module) => module,
@@ -151,7 +151,7 @@ impl Usb_Module {
     }
 
     /// Enable the endpoint for given transactions
-    pub fn enable_ep(&mut self, endpoint: uint, transfer: Endpoint_Type) {
+    pub fn enable_ep(&mut self, endpoint: uint, transfer: EndpointType) {
         // Tell peripheral to enable the endpoint
         self.peripheral.ep_enable(endpoint, transfer);
     }
@@ -163,7 +163,7 @@ impl Usb_Module {
 
     /// Prepare to receive transaction on endpoint
     /// Takes endpoint number and stream handler
-    pub fn queue_rx(&mut self, endpoint: uint, stream: &Stream_Handler) {
+    pub fn queue_rx(&mut self, endpoint: uint, stream: &StreamHandler) {
         // Pass to peripheral
         self.peripheral.queue_next(endpoint, false, stream);
     }
@@ -180,7 +180,7 @@ fn setup() {
 }
 
 /// Struct with endpoint info
-pub struct Ep_State {
+pub struct EpState {
     ep: u8,
     is_setup: bool,
     data: ~Vec<u8>,
@@ -191,7 +191,7 @@ pub struct Ep_State {
 
 /// PIDs for tokens
 #[deriving(Eq, FromPrimitive)]
-pub enum Token_Pid {
+pub enum TokenPid {
     Out         = 0b0001,
     In          = 0b1001,
     Sof         = 0b0101,
@@ -213,8 +213,8 @@ pub enum Token_Pid {
     Reserved    = 0b0000,
 }
 
-//impl Token_Pid {
-//    pub fn from_u8(num: u8) -> Token_Pid {
+//impl TokenPid {
+//    pub fn from_u8(num: u8) -> TokenPid {
 //        unsafe {
 //            core::mem::transmute(num & 0xF)
 //        }
@@ -232,7 +232,7 @@ pub fn handle_transaction(ep: u8, tx: bool, odd: bool, pid: u8, len: u16) {
 }
 
 /// Handles a setup token
-fn handle_setup(state: &mut Ep_State, len: u16) {
+fn handle_setup(state: &mut EpState, len: u16) {
     // Check ep state is expecting a SETUP
     if state.is_setup {
         // Queue data same as an out token
@@ -246,7 +246,7 @@ fn handle_setup(state: &mut Ep_State, len: u16) {
 }
 
 /// Handles an out token
-fn handle_out(state: &mut Ep_State, len: u16) {
+fn handle_out(state: &mut EpState, len: u16) {
     // Toggle data01
     
     // Subtract remaining bytes
@@ -264,22 +264,22 @@ fn handle_out(state: &mut Ep_State, len: u16) {
 }
 
 /// Handles an in token
-fn handle_in(state: &mut Ep_State, len: u16) {
+fn handle_in(state: &mut EpState, len: u16) {
 
 }
 
 /// Setup the state and BDT ready for OUT/SETUP token
-pub fn prepare_out(state: &mut Ep_State, buf: ~[u8], len: u16, callback: fn (~[u8], u16)) {
+pub fn prepare_out(state: &mut EpState, buf: ~[u8], len: u16, callback: fn (~[u8], u16)) {
 
 }
 
 /// Transfer the information in the state struct to the BDT
-fn queue_next(state: &mut Ep_State) {
+fn queue_next(state: &mut EpState) {
 
 }
 
 /// Gets the state for the specified endpoint
-pub fn get_ep_state(ep: u8, tx: bool, odd: bool) -> Option<&mut Ep_State> {
+pub fn get_ep_state(ep: u8, tx: bool, odd: bool) -> Option<&mut EpState> {
     None
 }
 

@@ -8,13 +8,13 @@ use std::rt::global_heap::malloc_raw;
 use cortex::regs::{store, load, set, wait_for};
 use sim::{enable_clock, USBOTG};
 use sim::{select_usb_source};
-use rustusb::usb::{Usb_Peripheral, Usb_Module};
-use rustusb::usb::{Endpoint_Type};
-use rustusb::stream::Stream_Handler;
+use rustusb::usb::{UsbPeripheral, UsbModule};
+use rustusb::usb::{EndpointType};
+use rustusb::stream::StreamHandler;
 
 mod sim;
 
-static mut USB_PERIPHERAL: Option<Freescale_Usb> = None;
+static mut USB_PERIPHERAL: Option<FreescaleUsb> = None;
 
 static BASE_USB: u32        = 0x4007_2000;
 static USB_USBTRC0: u32     = BASE_USB + 0x010C;
@@ -35,7 +35,7 @@ static USB_BDTPAGE3: u32    = BASE_USB + 0x00B4;
 
 static USB_ENDPT0: u32      = BASE_USB + 0x00C0;
 
-pub enum Usb_Int {
+pub enum UsbInt {
     USBRSTEN = 0x01,
     ERROREN  = 0x02,
     SOFTOKEN = 0x04,
@@ -105,23 +105,23 @@ pub enum Usb_Int {
 //     }
 // }
 // 
-// pub fn set_interrupt(val: Usb_Int) {
+// pub fn set_interrupt(val: UsbInt) {
 //     unsafe {
 //         set(USB_INTEN as *mut u8, val as u8);
 //     }
 // }
 // 
 
-pub struct Freescale_Usb {
+pub struct FreescaleUsb {
     bdt: *mut u32,
     max_ep: uint,
     ping: [bool, ..32],
 }
 
-impl Freescale_Usb {
+impl FreescaleUsb {
     /// Create a new instance
     /// Specify number of endpoints including EP0
-    pub fn new(max_endpoint: uint) -> &'static mut Freescale_Usb {
+    pub fn new(max_endpoint: uint) -> &'static mut FreescaleUsb {
         let size = if max_endpoint > 15 {
             512
         } else {
@@ -131,16 +131,16 @@ impl Freescale_Usb {
         // Need 512byte aligned memory for BDT
         // TODO: Need to fix up alignment. Maybe just static assignment?
         let ptr = unsafe { malloc_raw(512) };
-        let this =Freescale_Usb {
+        let this =FreescaleUsb {
             bdt: ptr as *mut u32,
             max_ep: max_endpoint,
             ping: [false, ..32],
         };
         unsafe { USB_PERIPHERAL = Some(this); }
-        Freescale_Usb::get()
+        FreescaleUsb::get()
     }
 
-    pub fn get() -> &'static mut Freescale_Usb {
+    pub fn get() -> &'static mut FreescaleUsb {
         unsafe {
             match USB_PERIPHERAL {
                 Some(ref mut module) => module,
@@ -155,7 +155,7 @@ impl Freescale_Usb {
     }
     
     pub fn get_bdt_setting(&self, ep: uint, is_tx: bool, is_odd: bool) -> u32 {
-        let offset = Freescale_Usb::get_bdt_offset(ep, is_tx, is_odd);
+        let offset = FreescaleUsb::get_bdt_offset(ep, is_tx, is_odd);
         let addr = ((self.bdt as u32) + offset as u32) as *mut u32;
         unsafe {
             load(addr)
@@ -163,7 +163,7 @@ impl Freescale_Usb {
     }
     
     pub fn set_bdt_setting(&self, ep: uint, is_tx: bool, is_odd: bool, val: u32) {
-        let offset = Freescale_Usb::get_bdt_offset(ep, is_tx, is_odd);
+        let offset = FreescaleUsb::get_bdt_offset(ep, is_tx, is_odd);
         let addr = ((self.bdt as u32) + offset as u32) as *mut u32;
         unsafe {
             store(addr, val);
@@ -171,7 +171,7 @@ impl Freescale_Usb {
     }
 
     pub fn get_bdt_address(&self, ep: uint, is_tx: bool, is_odd: bool) -> u32 {
-        let offset = Freescale_Usb::get_bdt_offset(ep, is_tx, is_odd) + 4;
+        let offset = FreescaleUsb::get_bdt_offset(ep, is_tx, is_odd) + 4;
         let addr = ((self.bdt as u32) + offset as u32) as *mut u32;
         unsafe {
             load(addr)
@@ -179,7 +179,7 @@ impl Freescale_Usb {
     }
     
     pub fn set_bdt_address(&self, ep: uint, is_tx: bool, is_odd: bool, val: u32) {
-        let offset = Freescale_Usb::get_bdt_offset(ep, is_tx, is_odd) + 4;
+        let offset = FreescaleUsb::get_bdt_offset(ep, is_tx, is_odd) + 4;
         let addr = ((self.bdt as u32) + offset as u32) as *mut u32;
         unsafe {
             store(addr, val);
@@ -203,7 +203,7 @@ impl Freescale_Usb {
 
 // TODO: Implement Drop trait to free the bdt
 
-impl Usb_Peripheral for Freescale_Usb {
+impl UsbPeripheral for FreescaleUsb {
     /// Enables the USB peripheral
     /// Selects clock source, resets peripheral hardware,
     /// allocates needed memory, runs software usb reset
@@ -278,7 +278,7 @@ impl Usb_Peripheral for Freescale_Usb {
         16
     }
 
-    fn queue_next(&mut self, ep: uint, is_tx: bool, stream: &Stream_Handler) {
+    fn queue_next(&mut self, ep: uint, is_tx: bool, stream: &StreamHandler) {
         // Get pingpong status
         let ping_index = ep*2 + if is_tx { 1 } else { 0 };
         let odd = self.ping[ping_index];
@@ -289,7 +289,7 @@ impl Usb_Peripheral for Freescale_Usb {
             unsafe { abort(); }
         }
 
-        // Transfer Stream_Handler into BDT
+        // Transfer StreamHandler into BDT
         let addr = stream.address() as u32;
         self.set_bdt_address(ep, is_tx, odd, addr);
         
@@ -311,7 +311,7 @@ impl Usb_Peripheral for Freescale_Usb {
         }
     }
 
-    fn ep_enable(&self, ep: uint, typ: Endpoint_Type) {
+    fn ep_enable(&self, ep: uint, typ: EndpointType) {
         // Make sure ep is in range
         if ep > 15 {
             unsafe { abort(); }
@@ -320,11 +320,11 @@ impl Usb_Peripheral for Freescale_Usb {
         // Work out flags required for type
         let val = match typ {
             rustusb::usb::Control         => 0x0D,
-            rustusb::usb::Tx_Only         => 0x15,
-            rustusb::usb::Rx_Only         => 0x19,
-            rustusb::usb::Tx_Rx           => 0x1D,
-            rustusb::usb::Isochronous_Tx  => 0x14,
-            rustusb::usb::Isochronous_Rx  => 0x18
+            rustusb::usb::TxOnly         => 0x15,
+            rustusb::usb::RxOnly         => 0x19,
+            rustusb::usb::TxRx           => 0x1D,
+            rustusb::usb::IsochronousTx  => 0x14,
+            rustusb::usb::IsochronousRx  => 0x18
         };
 
         // Set enpoint
@@ -351,7 +351,7 @@ impl Usb_Peripheral for Freescale_Usb {
 #[no_mangle]
 pub extern "C" fn USB0_Handler() {
     // Check module has been initialised (needed?)
-    if !Usb_Module::is_ready() {
+    if !UsbModule::is_ready() {
         return;
     }
 
@@ -359,7 +359,7 @@ pub extern "C" fn USB0_Handler() {
     let istat = unsafe { load(USB_ISTAT) };
     
     // Get module
-    let module = Usb_Module::get();
+    let module = UsbModule::get();
     
     // On usbrst call reset and return
     if istat & 1 > 0 {
@@ -381,7 +381,7 @@ pub extern "C" fn USB0_Handler() {
         let tx = (stat & 0x08) > 0;
         let odd = (stat & 0x04) > 0;
 
-        let this = Freescale_Usb::get();
+        let this = FreescaleUsb::get();
         let bdt_info = this.get_bdt_setting(ep, tx, odd);
         let pid = (bdt_info >> 2) & 0x0F;
         let len = (bdt_info >> 16) & 0x3FF;

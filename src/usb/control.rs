@@ -1,8 +1,8 @@
 /// Logic for the control endpoint
 
 use std::vec_ng::Vec;
-use usb::{Endpoint_Handler, Usb_Module, Control, Token_Pid};
-use stream::Stream_Handler;
+use usb::{EndpointHandler, UsbModule, Control, TokenPid};
+use stream::StreamHandler;
 
 static REQ_GET_STATUS     : u8 = 0x00;
 static REQ_CLEAR_FEATURE  : u8 = 0x01;
@@ -15,38 +15,37 @@ static REQ_SET_CONFIG     : u8 = 0x09;
 static REQ_GET_INTERFACE  : u8 = 0x0A;
 static REQ_SET_INTERFACE  : u8 = 0x11;
 
-pub struct Ep0_Handler {
+pub struct Ep0Handler {
     num: uint,
-    buf: Vec<u8>,
-    rx_stream: Stream_Handler,
+    buf: [u8, ..64],
+    rx_stream: StreamHandler,
 }
 
-impl Ep0_Handler {
-    pub fn new(max_packet: uint) -> Ep0_Handler {
-        let buf: Vec<u8> = Vec::with_capacity(max_packet);
-        Ep0_Handler {
+impl Ep0Handler {
+    pub fn new(max_packet: uint) -> Ep0Handler {
+        Ep0Handler {
             num: 0,
-            buf: buf,
-            rx_stream: Stream_Handler::new(max_packet),
+            buf: [0, ..64],
+            rx_stream: StreamHandler::new(max_packet),
         }
     }
 }
 
-impl Endpoint_Handler for Ep0_Handler {
-//    fn handle_setup(&self, module: &Usb_Module, endpoint: uint, length: uint) -> bool {
+impl EndpointHandler for Ep0Handler {
+//    fn handle_setup(&self, module: &UsbModule, endpoint: uint, length: uint) -> bool {
 //        true
 //    }
 //
-//    fn handle_out(&self, module: &Usb_Module, endpoint: uint, length: uint) -> bool {
+//    fn handle_out(&self, module: &UsbModule, endpoint: uint, length: uint) -> bool {
 //        true
 //    }
 //
-//    fn handle_in(&self, module: &Usb_Module, endpoint: uint, length: uint) -> bool {
+//    fn handle_in(&self, module: &UsbModule, endpoint: uint, length: uint) -> bool {
 //        true
 //    }
     
     /// Activate endpoint 0 and prepare to receive setup transaction
-    fn on_reset(&mut self, module: &'static mut Usb_Module) {
+    fn on_reset(&mut self, module: &'static mut UsbModule) {
         // Enable EP0 for control transfers
         module.enable_ep(0, Control);
 
@@ -59,7 +58,7 @@ impl Endpoint_Handler for Ep0_Handler {
     }
 
     /// Handle token addressed to endpoint
-    fn on_token(&mut self, module: &'static mut Usb_Module, ep: uint, is_tx: bool, pid: Token_Pid, len: uint) {
+    fn on_token(&mut self, module: &'static mut UsbModule, ep: uint, is_tx: bool, pid: TokenPid, len: uint) {
         // Check PID matches expected state
         // Feed token into stream handler
         // If finished, process as control transfer

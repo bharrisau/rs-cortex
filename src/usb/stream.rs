@@ -7,7 +7,7 @@
 use std::intrinsics::abort;
 use std::cmp::min;
 
-pub struct Stream_Handler {
+pub struct StreamHandler {
     max_packet: uint,
     data1: bool,
     buf: Option<*mut u8>,
@@ -15,10 +15,10 @@ pub struct Stream_Handler {
     position: uint,
 }
 
-impl Stream_Handler {
-    /// Create a new Stream_Handler
-    pub fn new(max: uint) -> Stream_Handler {
-        Stream_Handler {
+impl StreamHandler {
+    /// Create a new StreamHandler
+    pub fn new(max: uint) -> StreamHandler {
+        StreamHandler {
             max_packet: max,
             data1: false,
             buf: None,
