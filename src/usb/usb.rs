@@ -4,7 +4,6 @@
 //use core::fail::abort;
 use control::Ep0Handler;
 use stream::StreamHandler;
-use std::vec_ng::Vec;
 use std::intrinsics::abort;
 
 static mut USB_MODULE: Option<UsbModule> = None; 

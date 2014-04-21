@@ -1,8 +1,8 @@
 //#[feature(phase)];
 
-#[crate_id = "freescale"];
-#[crate_type = "rlib"];
-#[license = "MIT"];
+#![crate_id = "freescale"]
+#![crate_type = "rlib"]
+#![license = "MIT"]
 
 extern crate cortex;
 extern crate rustusb = "usb";

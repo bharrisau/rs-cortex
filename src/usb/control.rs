@@ -1,6 +1,5 @@
 /// Logic for the control endpoint
 
-use std::vec_ng::Vec;
 use usb::{EndpointHandler, UsbModule, Control, TokenPid};
 use stream::StreamHandler;
 

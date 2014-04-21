@@ -10,7 +10,7 @@ CPU        := cortex-m0
 FLOAT      := soft
 
 RUSTLIBS   := -L . -L build
-RUSTFLAGS  = --target $(ARCH)-linux-eabi -C target-cpu=$(CPU) --cfg libc $(RUSTLIBS) \
+RUSTFLAGS  = --target $(ARCH)-unknown-eabi -C target-cpu=$(CPU) $(RUSTLIBS) \
               --opt-level $(OPT) -C $(FLOAT)-float -g -Z no-landing-pads \
 	      -A dead_code -A unused_variable
 LDFLAGS    := -mcpu=cortex-m0pllus -mthumb -O$(OPT) -nostartfiles \
