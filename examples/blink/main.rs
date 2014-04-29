@@ -3,6 +3,8 @@
 
 #![crate_id = "blink"]
 
+//TODO: Move startup.S into rust
+
 extern crate cortex;
 //extern crate freescale;
 

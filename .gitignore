@@ -1,3 +1,4 @@
 *.rlib
-lib.d
-/build
+*.d
+*.map
+build
