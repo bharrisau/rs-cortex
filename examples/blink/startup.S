@@ -185,7 +185,8 @@ Reset_Handler:
 		ldr    r0, =SystemInit
 		blx    r0
 		ldr    r0, =_start
-		bx    r0
+		blx    r0
+    bkpt
 		.pool
 		.size Reset_Handler, . - Reset_Handler
 

@@ -11,13 +11,14 @@ FLOAT      := soft
 RUSTLIBS   :=-L ../../  -L ../../build -L build
 RUSTFLAGS  = --target $(ARCH)-unknown-eabi -C target-cpu=$(CPU) $(RUSTLIBS) \
               --opt-level $(OPT) -C $(FLOAT)-float -g -Z no-landing-pads \
-	      -A dead_code -A unused_variable -C llvm-args=-ffunction-sections
+	      -A dead_code -A unused_variable \
+	      -C llvm-args="-ffunction-sections -fdata-sections"
 LDFLAGS    := -mcpu=cortex-m0plus -mthumb -O$(OPT) -nostartfiles \
               -ffreestanding -fno-builtin -Wl,-Map=blink.map \
-	      -fno-asynchronous-unwind-tables -TMKL25Z64.ld startup.o \
-	      --specs=nano.specs -Wl,--gc-sections
+	      -fno-asynchronous-unwind-tables -TMKL25Z64.ld build/startup.o \
+	      --specs=nano.specs -Wl,--gc-sections -Wl,--print-gc-sections
 
-DEPS	   := build/libcompiler-rt.a build/libmorestack.a
+DEPS	   := build/libcompiler-rt.a build/libmorestack.a build/startup.o
 
 all: build/blink
 
@@ -30,6 +31,10 @@ build/libcompiler-rt.a: build/.touch
 
 build/libmorestack.a: build/.touch
 	$(AR) cr build/libmorestack.a
+
+build/startup.o:
+	$(CC) -c -mcpu=cortex-m0plus -msoft-float -mthumb \
+	  -o build/startup.o startup.S
 
 build/blink.o: $(DEPS) main.rs
 	$(RUSTC) $(RUSTFLAGS) --emit=obj --out-dir build -Z lto main.rs
