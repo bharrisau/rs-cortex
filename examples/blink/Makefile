@@ -9,10 +9,11 @@ CPU        := cortex-m0
 FLOAT      := soft
 
 RUSTLIBS   :=-L ../../  -L ../../build -L build
-RUSTFLAGS  = --target $(ARCH)-unknown-eabi -C target-cpu=$(CPU) $(RUSTLIBS) \
+RUSTFLAGS  = --target $(ARCH)-linux-eabi -C target-cpu=$(CPU) $(RUSTLIBS) \
               --opt-level $(OPT) -C $(FLOAT)-float -g -Z no-landing-pads \
 	      -A dead_code -A unused_variable \
-	      -C llvm-args="-ffunction-sections -fdata-sections"
+	      -C llvm-args="-ffunction-sections -fdata-sections" \
+	      -C relocation-model=static
 LDFLAGS    := -mcpu=cortex-m0plus -mthumb -O$(OPT) -nostartfiles \
               -ffreestanding -fno-builtin -Wl,-Map=blink.map \
 	      -fno-asynchronous-unwind-tables -TMKL25Z64.ld build/startup.o \
@@ -31,6 +32,15 @@ build/libcompiler-rt.a: build/.touch
 
 build/libmorestack.a: build/.touch
 	$(AR) cr build/libmorestack.a
+
+build/libstd.rlib:
+	sed -i 's/\#!\[crate_type = "dylib"\]//g' $(RUST_GIT)/src/libstd/lib.rs
+	$(AR) cr build/librustrt.a
+	$(AR) cr build/libbacktrace.a
+	$(RUSTC) $(RUSTFLAGS) --out-dir build $(RUST_GIT)/src/libstd/lib.rs
+
+build/liblibc.rlib:
+	$(RUSTC) $(RUSTFLAGS) --out-dir build $(RUST_GIT)/src/liblibc/lib.rs
 
 build/startup.o:
 	$(CC) -c -mcpu=cortex-m0plus -msoft-float -mthumb \

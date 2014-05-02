@@ -120,6 +120,7 @@ SECTIONS
 		PROVIDE_HIDDEN (__fini_array_end = .);
 
 		KEEP(*(.jcr*))
+
 		. = ALIGN(4);
 		/* All data end */
 		__data_end__ = .;
@@ -133,6 +134,10 @@ SECTIONS
 		*(.bss*)
 		*(COMMON)
 		. = ALIGN(4);
+    __STACK_LIMIT = .;
+
+    . += 4;
+
 		__bss_end__ = .;
 	} > RAM
 
@@ -156,7 +161,6 @@ SECTIONS
 	 * size of stack_dummy section */
 	__StackTop = ORIGIN(RAM) + LENGTH(RAM);
 	__StackLimit = __StackTop - SIZEOF(.stack_dummy);
-  STACK_LIMIT = __StackLimit;
 	PROVIDE(__stack = __StackTop);
 
 	/* Check if data + heap + stack exceeds RAM limit */
